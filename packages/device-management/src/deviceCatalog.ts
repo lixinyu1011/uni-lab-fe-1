@@ -4,6 +4,11 @@ import type {
   OnlineDevice
 } from '@unilab/services'
 
+const deviceNameCollator = new Intl.Collator('zh-CN', {
+  numeric: true,
+  sensitivity: 'base'
+})
+
 export interface ManagedDevice extends OnlineDevice {
   edgeStatus: DeviceEdgeStatus
   dispatchable: boolean
@@ -14,10 +19,10 @@ export interface ManagedDevice extends OnlineDevice {
 }
 
 /**
- * 把 Edge 目录转换为仪器设备菜单模型，并排除仅供系统调度的宿主节点。
+ * 把 Edge 目录转换为仪器设备菜单模型，排除宿主节点并按名称自然排序。
  *
  * @param edgeDevices Edge 实时返回的设备目录。
- * @returns 保留设备身份和在线状态的可展示仪器设备列表。
+ * @returns 保留设备身份和在线状态，按中文拼音与数字顺序排列的设备列表。
  * @throws 不抛出异常。
  * @safety 只执行内存映射，不修改设备状态或发送动作。
  */
@@ -45,4 +50,8 @@ export function presentEdgeDevices(
         displayDetail: ''
       }
     })
+    .sort((left, right) => (
+      deviceNameCollator.compare(left.displayName, right.displayName) ||
+      left.id.localeCompare(right.id)
+    ))
 }
