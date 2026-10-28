@@ -15,6 +15,7 @@ import {
 
 import type { ManagedDevice } from './deviceCatalog'
 import { useDevices } from './useDevices'
+import { useDeviceStatus } from './useDeviceStatus'
 import {
   deviceActionDraftStorageKey,
   projectSelectedDeviceAction,
@@ -127,6 +128,11 @@ export default function DevicePanel({
       ?? null,
     [devices, selectedDeviceId]
   )
+  const selectedDeviceStatus = useDeviceStatus({
+    services,
+    deviceId: selectedDevice?.id ?? null,
+    active: active && backendEnabled && connection === 'connected'
+  })
   const selectedCatalogAction = useMemo(
     () =>
       selectedDevice?.actions.find(
@@ -743,6 +749,7 @@ export default function DevicePanel({
             canForceUnlock={canForceUnlock}
             unlockOperation={unlockOperation}
             onRequestUnlock={handleRequestUnlock}
+            status={selectedDeviceStatus}
           />
         ) : (
           <div className={deviceClass('device-empty device-empty--detail')}>

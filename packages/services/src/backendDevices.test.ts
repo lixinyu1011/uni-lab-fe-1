@@ -8,6 +8,7 @@ import type { HttpClient } from './http'
 import {
   loadBackendActionSchema,
   loadBackendDeviceCatalog,
+  loadBackendDeviceStatuses,
   loadBackendOnlineDevices
 } from './backendDevices'
 
@@ -187,6 +188,24 @@ describe('Backend 设备目录 adapter', () => {
       actionType: 'UniLabJsonCommand',
       isBusy: false,
       currentJobId: null
+    })
+  })
+
+  /** 状态监控只读设备列表，不触发动作目录或动作占用补读。 */
+  it('按设备物料 UUID 返回 Edge 上报的状态属性', async () => {
+    const { http, request } = fixture({
+      status: { status: 'Idle', temperature: '25.0', sites: [{ site: 1 }], empty: null }
+    })
+
+    await expect(loadBackendDeviceStatuses(http)).resolves.toEqual({
+      [materialUuid]: { status: 'Idle', temperature: '25.0', sites: '[{"site":1}]' }
+    })
+    expect(request.mock.calls.map(([path]) => path)).toEqual(['/api/v1/devices'])
+  })
+
+  it('旧服务未返回 status 时状态为空对象', async () => {
+    await expect(loadBackendDeviceStatuses(fixture().http)).resolves.toEqual({
+      [materialUuid]: {}
     })
   })
 

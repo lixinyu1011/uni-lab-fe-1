@@ -462,6 +462,76 @@
   background: var(--unilab-color-danger);
 }
 
+// 状态监控：位于动作参数预览下方，长表格在自身区域滚动，不撑高粘性参数区。
+.edge-device__status-monitor {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--unilab-color-border);
+}
+
+.edge-device__status-monitor > .edge-device__status-list {
+  max-height: clamp(160px, calc(100vh - 520px), 360px);
+  padding-right: 4px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.edge-device__status-list {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  font-size: 11px;
+}
+
+.edge-device__status-list > div {
+  display: grid;
+  grid-template-columns: minmax(96px, 0.35fr) minmax(0, 1fr);
+  align-items: start;
+  gap: 10px;
+}
+
+.edge-device__status-list dt {
+  color: var(--unilab-color-text-muted);
+  font: 500 10px/1.6 var(--unilab-font-mono);
+  overflow-wrap: anywhere;
+}
+
+.edge-device__status-list dd {
+  min-width: 0;
+  margin: 0;
+  overflow-x: auto;
+}
+
+.edge-device__status-list dd > code {
+  font: 600 11px/1.6 var(--unilab-font-mono);
+  overflow-wrap: anywhere;
+}
+
+.edge-device__status-table {
+  border-collapse: collapse;
+  font: 500 10px/1.4 var(--unilab-font-mono);
+}
+
+.edge-device__status-table th,
+.edge-device__status-table td {
+  padding: 2px 6px;
+  border: 1px solid var(--unilab-color-border);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.edge-device__status-table th {
+  color: var(--unilab-color-text-muted);
+  background: var(--unilab-color-surface-subtle);
+  font-weight: 650;
+}
+
+.edge-device__status-error {
+  margin: 0 0 8px;
+  color: var(--unilab-color-danger);
+  font-size: 11px;
+}
+
 @media (max-width: 1080px) {
   .edge-device__content {
     grid-template-columns: 1fr;

@@ -25,6 +25,8 @@ import {
   type ArgumentDraft
 } from './DevicePanelPresentation'
 import { shortIdentifier } from './devicePanelFormat'
+import { DeviceStatusMonitor } from './DeviceStatusMonitor'
+import type { DeviceStatusSnapshot } from './useDeviceStatus'
 
 export function ConnectionSummary({
   connection,
@@ -157,7 +159,8 @@ export function DeviceWorkspace({
   onCancelActionTask,
   canForceUnlock,
   unlockOperation,
-  onRequestUnlock
+  onRequestUnlock,
+  status
 }: {
   device: ManagedDevice
   selectedAction: DeviceAction | null
@@ -180,6 +183,8 @@ export function DeviceWorkspace({
   canForceUnlock: boolean
   unlockOperation: UnlockOperation | null
   onRequestUnlock: (device: ManagedDevice, action: DeviceAction) => void
+  /** 选中设备的状态监控快照；未提供时不渲染状态监控。 */
+  status?: DeviceStatusSnapshot
 }): React.JSX.Element {
   const busyActionCount = device.actions.filter(
     (action) => action.isBusy
@@ -390,6 +395,7 @@ export function DeviceWorkspace({
               选择一个动作节点后配置参数并运行。
             </div>
           )}
+          {status ? <DeviceStatusMonitor snapshot={status} /> : null}
         </section>
       </div>
     </div>

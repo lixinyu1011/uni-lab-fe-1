@@ -18,6 +18,7 @@ import {
   loadBackendActionSchema,
   loadBackendDeviceActions,
   loadBackendDeviceCatalog,
+  loadBackendDeviceStatuses,
   loadBackendOnlineDevices
 } from './backendDevices'
 import type {
@@ -62,6 +63,9 @@ export interface OnlineDeviceReadOptions {
 }
 
 export type DeviceEdgeStatus = 'registered' | 'online' | 'offline'
+
+/** Edge 最近一次上报的设备状态属性：属性名 → 发布值（ROS 发布值统一按字符串传输）。 */
+export type DeviceStatusProperties = Record<string, string>
 
 export type DeviceExecutionOccupancyState =
   | 'reserved'
@@ -215,6 +219,13 @@ export function createLaboratoryService(
         readActionCatalog,
         options.includeActionStatuses ?? true
       )
+    },
+
+    /** 读取各设备最近上报的状态属性（设备物料 UUID → 属性），供状态监控轮询。 */
+    async getDeviceStatuses(
+      signal?: AbortSignal
+    ): Promise<Record<string, DeviceStatusProperties>> {
+      return loadBackendDeviceStatuses(http, signal)
     },
 
     async getDeviceActions(deviceId: string): Promise<DeviceAction[]> {

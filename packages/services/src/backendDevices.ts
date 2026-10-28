@@ -7,6 +7,7 @@ import type {
   DeviceCatalogItem,
   DeviceEdgeStatus,
   DeviceExecutionOccupancy,
+  DeviceStatusProperties,
   OnlineDevice
 } from './laboratory'
 import { ServiceError } from './errors'
@@ -34,6 +35,7 @@ interface BackendDevice {
   dispatchBlockReason: string | null
   executionOccupancies: DeviceExecutionOccupancy[] | null
   actions: BackendDeviceAction[]
+  status: DeviceStatusProperties
 }
 
 interface BackendDeviceAction {
@@ -132,6 +134,21 @@ export async function loadBackendOnlineDevices(
       matchActionTemplate(device, action, templates)
     ))
   }))
+}
+
+/**
+ * 读取各设备最近一次由 Edge 上报的状态属性；只请求设备列表，不补读动作占用。
+ *
+ * @param http 已绑定 Backend 权威地址的 HTTP 客户端。
+ * @param signal 可选请求取消信号。
+ * @returns 以设备物料 UUID 为键的状态属性；旧服务未返回状态时为空对象。
+ */
+export async function loadBackendDeviceStatuses(
+  http: HttpClient,
+  signal?: AbortSignal
+): Promise<Record<string, DeviceStatusProperties>> {
+  const devices = await loadBackendDevices(http, signal)
+  return Object.fromEntries(devices.map((device) => [device.id, device.status]))
 }
 
 /** 读取至少声明一个动作的 Backend 设备目标。 */
@@ -332,8 +349,19 @@ function mapBackendDevice(raw: Record<string, unknown>): BackendDevice {
           action.current_job_id ?? action.currentJobId
         ) ?? null
       }
-    })
+    }),
+    status: deviceStatusProperties(raw.status)
   }
+}
+
+/** 收窄 Edge 上报的状态属性；非字符串值转为 JSON 文本，缺失或非对象视为未上报。 */
+function deviceStatusProperties(value: unknown): DeviceStatusProperties {
+  if (!isRecord(value)) return {}
+  return Object.fromEntries(
+    Object.entries(value)
+      .filter(([, item]) => item != null)
+      .map(([name, item]) => [name, typeof item === 'string' ? item : JSON.stringify(item)])
+  )
 }
 
 /**
