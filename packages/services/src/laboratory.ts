@@ -25,6 +25,13 @@ import type {
   WorkflowActionCatalogReader
 } from './workflowActionCatalogStore'
 import {
+  cancelStationErrorTask,
+  loadStationControl,
+  resumeStationControl,
+  type StationControl,
+  type StationError
+} from './stationControl'
+import {
   getRuntimeDevices,
   mapRuntimeDeviceAction,
   mapRuntimeResource,
@@ -226,6 +233,24 @@ export function createLaboratoryService(
       signal?: AbortSignal
     ): Promise<Record<string, DeviceStatusProperties>> {
       return loadBackendDeviceStatuses(http, signal)
+    },
+
+    /** 读取工站调度闸门；暂停时设备页提示并提供恢复入口。 */
+    async getStationControl(signal?: AbortSignal): Promise<StationControl> {
+      return loadStationControl(http, undefined, signal)
+    },
+
+    /** 用户核对现场后恢复工站普通调度。 */
+    async resumeStation(control: StationControl): Promise<void> {
+      return resumeStationControl(http, control)
+    },
+
+    /** 对节点错误选择取消出错任务。 */
+    async cancelStationErrorTask(
+      control: StationControl,
+      error: StationError
+    ): Promise<void> {
+      return cancelStationErrorTask(http, control, error)
     },
 
     async getDeviceActions(deviceId: string): Promise<DeviceAction[]> {

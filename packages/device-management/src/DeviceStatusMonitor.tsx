@@ -2,6 +2,32 @@ import { deviceClass } from './deviceStyles'
 import { formatTime } from './DevicePanelPresentation'
 import type { DeviceStatusSnapshot } from './useDeviceStatus'
 
+/** 设备 status 只有四种取值：按中文标签和颜色显示，其他取值原样显示。 */
+const STATUS_BADGES: Readonly<Record<string, { label: string; tone: string }>> = {
+  Idle: { label: '空闲', tone: 'is-online' },
+  Running: { label: '运行中', tone: 'is-running' },
+  Error: { label: '故障', tone: 'is-blocked' },
+  Offline: { label: '离线', tone: 'is-offline' }
+}
+
+/** 展示顺序：status 在最上面，sites 紧跟其后，其余属性按名称排序。 */
+const PINNED_PROPERTIES = ['status', 'sites']
+
+/**
+ * 按展示顺序排列状态属性。
+ *
+ * @param properties 设备上报的属性名到发布值。
+ * @returns status、sites 在前，其余按名称排序的属性列表。
+ */
+export function orderStatusEntries(properties: Record<string, string>): [string, string][] {
+  const rank = (name: string): number => {
+    const index = PINNED_PROPERTIES.indexOf(name)
+    return index === -1 ? PINNED_PROPERTIES.length : index
+  }
+  return Object.entries(properties)
+    .sort(([left], [right]) => rank(left) - rank(right) || left.localeCompare(right))
+}
+
 /**
  * 展示选中设备最近一次由 Edge 上报的状态属性。
  *
@@ -13,8 +39,7 @@ export function DeviceStatusMonitor({
 }: {
   snapshot: DeviceStatusSnapshot
 }): React.JSX.Element {
-  const entries = Object.entries(snapshot.properties ?? {})
-    .sort(([left], [right]) => left.localeCompare(right))
+  const entries = orderStatusEntries(snapshot.properties ?? {})
   return (
     <section
       className={deviceClass('edge-device__status-monitor')}
@@ -40,7 +65,11 @@ export function DeviceStatusMonitor({
           {entries.map(([name, value]) => (
             <div key={name}>
               <dt>{name}</dt>
-              <dd><StatusValue value={parseStatusValue(value)} /></dd>
+              <dd>
+                {name === 'status'
+                  ? <DeviceStateBadge value={value} />
+                  : <StatusValue value={parseStatusValue(value)} />}
+              </dd>
             </div>
           ))}
         </dl>
@@ -50,6 +79,20 @@ export function DeviceStatusMonitor({
         </div>
       ) : null}
     </section>
+  )
+}
+
+/** 设备状态标签：空闲、运行中、故障、离线，附原始取值。 */
+function DeviceStateBadge({ value }: { value: string }): React.JSX.Element {
+  const badge = STATUS_BADGES[value]
+  if (!badge) return <code>{formatCell(value)}</code>
+  return (
+    <span
+      className={deviceClass('edge-device__status-badge', badge.tone)}
+      data-device-state={value}
+    >
+      {badge.label} {value}
+    </span>
   )
 }
 

@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from 'react-dom/server'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { DeviceStatusMonitor } from './DeviceStatusMonitor'
+import { DeviceStatusMonitor, orderStatusEntries } from './DeviceStatusMonitor'
 import { pollDeviceStatus, type DeviceStatusSnapshot } from './useDeviceStatus'
 
 const updatedAt = new Date('2026-10-28T14:10:05').getTime()
@@ -23,7 +23,7 @@ describe('device status monitor', () => {
 
     expect(markup).toContain('状态监控')
     expect(markup).toContain('更新于')
-    expect(markup).toContain('<dt>status</dt><dd><code>Idle</code></dd>')
+    expect(markup).toMatch(/<dt>status<\/dt><dd><span[^>]*data-device-state="Idle"[^>]*>空闲 Idle<\/span><\/dd>/)
     expect(markup).toContain('<th>site</th><th>occupied</th><th>reserved</th><th>type</th><th>consistent</th>')
     expect(markup).toContain('<td>1</td><td>true</td><td>false</td><td>0</td><td>false</td>')
     expect(markup).toContain('<th>2</th><td>B1</td><td>B2</td>')
@@ -34,6 +34,21 @@ describe('device status monitor', () => {
     const markup = render({ sites: JSON.stringify({ 出入库: [{ site: 1, occupied: false }] }) })
     expect(markup).toContain('<dt>出入库</dt>')
     expect(markup).toContain('<th>site</th><th>occupied</th>')
+  })
+
+  it('puts status on top, sites right below it, then the rest by name', () => {
+    expect(orderStatusEntries({ temperature: '60', sites: '[]', heating: 'True', status: 'Running' })
+      .map(([name]) => name)).toEqual(['status', 'sites', 'heating', 'temperature'])
+    const markup = render({ barcodes: '[]', sites: '[]', status: 'Running' })
+    expect(markup.indexOf('<dt>status</dt>')).toBeLessThan(markup.indexOf('<dt>sites</dt>'))
+    expect(markup.indexOf('<dt>sites</dt>')).toBeLessThan(markup.indexOf('<dt>barcodes</dt>'))
+  })
+
+  it('labels the four device states and shows any other value as text', () => {
+    expect(render({ status: 'Running' })).toContain('运行中 Running')
+    expect(render({ status: 'Error' })).toContain('故障 Error')
+    expect(render({ status: 'Offline' })).toContain('离线 Offline')
+    expect(render({ status: 'Online' })).toContain('<code>Online</code>')
   })
 
   it('distinguishes loading, no reported status and read errors', () => {

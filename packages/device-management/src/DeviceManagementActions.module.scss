@@ -532,6 +532,25 @@
   font-size: 11px;
 }
 
+// 设备状态标签：空闲绿、运行中黄、故障红、离线灰；status 固定排在第一行。
+.edge-device__status-list dd > .edge-device__status-badge {
+  display: inline-flex;
+  font-size: 10px;
+}
+
+.edge-device__status-list dd > .edge-device__status-badge::before {
+  content: '';
+}
+
+.edge-device__status-badge.is-running {
+  color: var(--unilab-color-warning);
+  background: var(--unilab-color-warning-soft);
+}
+
+.edge-device__status-badge.is-offline {
+  color: var(--unilab-color-text-muted);
+}
+
 @media (max-width: 1080px) {
   .edge-device__content {
     grid-template-columns: 1fr;

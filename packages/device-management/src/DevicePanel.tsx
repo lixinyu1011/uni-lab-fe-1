@@ -16,6 +16,7 @@ import {
 import type { ManagedDevice } from './deviceCatalog'
 import { useDevices } from './useDevices'
 import { useDeviceStatus } from './useDeviceStatus'
+import { StationDispatchControl } from './StationDispatchControl'
 import {
   deviceActionDraftStorageKey,
   projectSelectedDeviceAction,
@@ -656,6 +657,10 @@ export default function DevicePanel({
           connection={connection}
           backendName={backend.name}
           lastUpdated={lastUpdated}
+        />
+        <StationDispatchControl
+          services={services}
+          active={active && backendEnabled && connection === 'connected'}
         />
         {loading && devices.length === 0 ? (
           <div className={deviceClass('device-loading')} role="status">
