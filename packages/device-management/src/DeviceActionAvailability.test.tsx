@@ -11,6 +11,7 @@ import {
   activeDeviceActionTaskUuid,
   copyDeviceActionTaskId,
   deviceActionReadiness,
+  deviceActionReturnFields,
   projectDeviceActionTask
 } from './DeviceActionAvailability'
 
@@ -265,6 +266,50 @@ describe('device action Runtime availability', () => {
     expect(markup).toContain('Action 运行日志')
     expect(markup).toContain('&quot;events&quot;')
     expect(markup).toContain('&quot;progress&quot;: 0.5')
+  })
+
+  /** 机器人拍照搬运返回条码：动作结束后直接列出返回字段，不用翻运行日志。 */
+  it('lists returned fields such as the scanned barcode with schema titles', () => {
+    const markup = renderToStaticMarkup(
+      <DeviceActionAvailability
+        state={{
+          kind: 'succeeded',
+          message: '动作执行完成',
+          taskUuid: '10000000-0000-4000-8000-000000000001',
+          output: {
+            return_value: {
+              barcode: 'TRAY-001',
+              message: '机器人：搬运托盘完成（35.2 秒）',
+              success: true
+            }
+          }
+        }}
+        onRun={() => {}}
+        resultSchema={{ barcode: { type: 'string', title: '条码' } }}
+      />
+    )
+
+    expect(markup).toContain('aria-label="动作返回"')
+    expect(markup).toContain('<dt title="barcode">条码</dt><dd><code>TRAY-001</code></dd>')
+    expect(markup).toContain('<dt title="message">说明</dt>')
+    expect(markup).not.toContain('title="success"')
+    expect(markup).toContain('Action 运行日志')  // 原始日志仍保留
+  })
+
+  it('marks an empty return value and shows nothing before the action returns', () => {
+    expect(deviceActionReturnFields(
+      { return_value: { success: true, barcode: '' } },
+      { barcode: { title: '条码' } }
+    )).toEqual([{ name: 'barcode', label: '条码', value: '（空）' }])
+    expect(deviceActionReturnFields({})).toEqual([])
+    expect(deviceActionReturnFields(undefined)).toEqual([])
+    const markup = renderToStaticMarkup(
+      <DeviceActionAvailability
+        state={{ kind: 'running', message: '设备正在执行', taskUuid: '10000000-0000-4000-8000-000000000001' }}
+        onRun={() => {}}
+      />
+    )
+    expect(markup).not.toContain('动作返回')
   })
 
   it('shows the latest device wait reason when the action reports one', () => {

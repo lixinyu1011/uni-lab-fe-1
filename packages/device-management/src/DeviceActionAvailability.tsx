@@ -269,12 +269,15 @@ export function DeviceActionAvailability({
   state,
   onRun,
   onCancel,
-  disabledRunLabel
+  disabledRunLabel,
+  resultSchema
 }: {
   state: DeviceActionRunState
   onRun: () => void
   onCancel?: (taskUuid: string) => void
   disabledRunLabel?: string
+  /** 动作结果字段的 Schema，用其中的 title 显示返回字段名（如条码）。 */
+  resultSchema?: DeviceAction['outputSchema']
 }): React.JSX.Element {
   const [logCopied, setLogCopied] = useState(false)
   const [taskIdCopied, setTaskIdCopied] = useState(false)
@@ -286,6 +289,9 @@ export function DeviceActionAvailability({
     state.kind === 'canceled'
   const runnable = ready || terminal
   const log = deviceActionExecutionLog(state)
+  const returned = 'taskUuid' in state
+    ? deviceActionReturnFields(state.output, resultSchema)
+    : []
   const taskUuid = 'taskUuid' in state ? state.taskUuid : null
   useEffect(() => {
     setLogCopied(false)
@@ -368,6 +374,19 @@ export function DeviceActionAvailability({
               ) : null}
             </span>
           </div>
+          {returned.length ? (
+            <dl
+              className={deviceClass('edge-device__status-list', 'edge-device__execution-result')}
+              aria-label="动作返回"
+            >
+              {returned.map((field) => (
+                <div key={field.name}>
+                  <dt title={field.name}>{field.label}</dt>
+                  <dd><code>{field.value}</code></dd>
+                </div>
+              ))}
+            </dl>
+          ) : null}
           {log ? (
             <pre aria-label="Action 运行日志">{log}</pre>
           ) : (
@@ -420,6 +439,33 @@ function unavailableRunLabel(reason: DeviceActionUnavailableReason): string {
     case 'no_actions':
       return '运行此动作'
   }
+}
+
+/** 没有 Schema 标题时的通用返回字段名。 */
+const RETURN_FIELD_LABELS: Readonly<Record<string, string>> = { message: '说明' }
+
+/**
+ * 取出动作返回值（作业 return_info.return_value）里值得直接展示的字段。
+ *
+ * @param output 作业返回信息；动作结束前通常为空。
+ * @param resultSchema 动作结果字段的 Schema，有 title 时用作显示名。
+ * @returns 除 success 外的字段，按返回顺序；空字符串显示为“（空）”。
+ */
+export function deviceActionReturnFields(
+  output: Record<string, unknown> | undefined,
+  resultSchema: DeviceAction['outputSchema'] = {}
+): { name: string; label: string; value: string }[] {
+  const returned = output?.return_value
+  if (!returned || typeof returned !== 'object' || Array.isArray(returned)) return []
+  return Object.entries(returned as Record<string, unknown>)
+    .filter(([name]) => name !== 'success')
+    .map(([name, value]) => ({
+      name,
+      label: resultSchema[name]?.title ?? RETURN_FIELD_LABELS[name] ?? name,
+      value: value === '' || value == null
+        ? '（空）'
+        : typeof value === 'string' ? value : JSON.stringify(value)
+    }))
 }
 
 function deviceActionExecutionLog(state: DeviceActionRunState): string {

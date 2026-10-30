@@ -382,6 +382,7 @@ export function DeviceWorkspace({
                   if (actionTemplate) onRunAction(selectedAction, actionTemplate)
                 }}
                 onCancel={onCancelActionTask}
+                resultSchema={selectedAction.outputSchema}
               />
             </>
           ) : device.actions.length === 0 ? (
