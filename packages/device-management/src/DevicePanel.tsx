@@ -23,7 +23,6 @@ import {
   serializeDeviceActionInput
 } from './deviceActionRun'
 import {
-  shouldRecoverActiveDeviceActionTask,
   startDeviceActionTaskRecovery
 } from './deviceActionTaskRecovery'
 import {
@@ -55,9 +54,13 @@ export {
   UnlockConfirmationDialog
 } from './DevicePanelSupport'
 
-interface DeviceActionRunOperation {
+/** 每个动作各自的运行状态，键是 actionRef；多台设备的动作可以同时运行。 */
+type DeviceActionRunStates = Readonly<Record<string, DeviceActionRunState>>
+
+/** 一个正在运行、需要补读状态的动作任务。 */
+interface ActiveDeviceActionRun {
+  taskUuid: string
   actionRef: string
-  state: DeviceActionRunState
 }
 
 interface DeviceActionRunAttempt {
@@ -102,9 +105,8 @@ export default function DevicePanel({
     useState<WorkflowActionCatalogSnapshot | null>(null)
   const [actionCatalogLoading, setActionCatalogLoading] = useState(false)
   const [actionCatalogError, setActionCatalogError] = useState<string | null>(null)
-  const [runOperation, setRunOperation] =
-    useState<DeviceActionRunOperation | null>(null)
-  const runAttemptRef = useRef<DeviceActionRunAttempt | null>(null)
+  const [runStates, setRunStates] = useState<DeviceActionRunStates>({})
+  const runAttemptRef = useRef<Map<string, DeviceActionRunAttempt>>(new Map())
   const feedbackByTaskRef = useRef<Map<string, DeviceActionFeedbackState>>(
     new Map()
   )
@@ -116,11 +118,23 @@ export default function DevicePanel({
   const canRunActionTask = services.capabilities.devices.runActionTask
 
   useEffect(() => {
-    runAttemptRef.current = null
+    runAttemptRef.current.clear()
     feedbackByTaskRef.current.clear()
     refreshByTaskRef.current.clear()
-    setRunOperation(null)
+    setRunStates({})
   }, [backend.apiUrl, backend.id])
+
+  /** 写入某个动作的运行状态；回调返回 null 表示这次不改（任务身份已经变了）。 */
+  const setRunState = useCallback((
+    actionRef: string,
+    next: DeviceActionRunState |
+      ((current: DeviceActionRunState | undefined) => DeviceActionRunState | null)
+  ): void => {
+    setRunStates((current) => {
+      const value = typeof next === 'function' ? next(current[actionRef]) : next
+      return value === null ? current : { ...current, [actionRef]: value }
+    })
+  }, [])
 
   const selectedDevice = useMemo(
     () =>
@@ -342,26 +356,17 @@ export default function DevicePanel({
       if (!page.has_more) break
     }
     feedbackByTaskRef.current.set(taskUuid, { cursor, items: feedback })
-    setRunOperation((current) => {
-      if (
-        !current ||
-        current.actionRef !== actionRef ||
-        !('taskUuid' in current.state) ||
-        current.state.taskUuid !== taskUuid
-      ) {
-        return current
-      }
-      return {
-        actionRef,
-        state: projectDeviceActionTask(view, feedback)
-      }
-    })
+    setRunState(actionRef, (current) => (
+      current && 'taskUuid' in current && current.taskUuid === taskUuid
+        ? projectDeviceActionTask(view, feedback)
+        : null
+    ))
     const terminal = isTerminalDeviceActionTask(view.status)
     if (terminal) {
       await refresh()
     }
     return terminal
-  }, [refresh, services.deviceActionTasks, services.workflow])
+  }, [refresh, services.deviceActionTasks, services.workflow, setRunState])
 
   const queueDeviceActionTaskRefresh = useCallback((
     taskUuid: string,
@@ -381,22 +386,19 @@ export default function DevicePanel({
     return next
   }, [refreshDeviceActionTask])
 
-  const activeTaskUuid = activeDeviceActionTaskUuid(runOperation)
-  const activeTaskIsVisible = shouldRecoverActiveDeviceActionTask(
-    selectedActionRef,
-    runOperation?.actionRef ?? null,
-    activeTaskUuid
+  // 所有还在运行的动作任务（可能分属多台设备），都要补读状态，不只看当前选中的那个。
+  const activeRuns = useMemo<ActiveDeviceActionRun[]>(
+    () => Object.entries(runStates).flatMap(([actionRef, state]) => {
+      const taskUuid = activeDeviceActionTaskUuid({ actionRef, state })
+      return taskUuid ? [{ taskUuid, actionRef }] : []
+    }),
+    [runStates]
   )
+  const activeRunsKey = activeRuns.map((run) => `${run.actionRef}:${run.taskUuid}`).join('|')
   useEffect(() => {
-    if (
-      !active ||
-      !activeTaskIsVisible ||
-      !activeTaskUuid ||
-      !runOperation
-    ) return
-    const actionRef = runOperation.actionRef
+    if (!active || activeRuns.length === 0) return
     const recovery = startDeviceActionTaskRecovery({
-      tasks: [{ taskUuid: activeTaskUuid, actionRef }],
+      tasks: activeRuns,
       subscribe: services.capabilities.workflow.subscribeEvents
         ? (listener, options) =>
             services.workflow.subscribeWorkflowRuntime(listener, options)
@@ -406,36 +408,29 @@ export default function DevicePanel({
         task.actionRef
       ),
       onError: (task, error) => {
-        setRunOperation((current) => {
-          if (
-            !current ||
-            !('taskUuid' in current.state) ||
-            current.state.taskUuid !== task.taskUuid
-          ) {
-            return current
-          }
-          return {
-            ...current,
-            state: {
-              ...current.state,
-              message: error instanceof Error
-                ? `任务状态补读失败：${error.message}`
-                : '任务状态补读失败'
-            }
-          }
-        })
+        setRunState(task.actionRef, (current) => (
+          current && 'taskUuid' in current && current.taskUuid === task.taskUuid
+            ? {
+                ...current,
+                message: error instanceof Error
+                  ? `任务状态补读失败：${error.message}`
+                  : '任务状态补读失败'
+              }
+            : null
+        ))
       },
       fallbackDelaysMs: [2_000, 5_000, 10_000, 30_000]
     })
     return () => recovery.dispose()
+    // activeRunsKey 覆盖 activeRuns 的内容变化；数组本身每次渲染都是新对象。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     active,
-    activeTaskIsVisible,
-    activeTaskUuid,
+    activeRunsKey,
     queueDeviceActionTaskRefresh,
-    runOperation?.actionRef,
-    selectedActionRef,
-    services.workflow
+    services.capabilities.workflow.subscribeEvents,
+    services.workflow,
+    setRunState
   ])
 
   const handleRefresh = useCallback(async (): Promise<void> => {
@@ -443,18 +438,14 @@ export default function DevicePanel({
       refreshDevices: refresh,
       refreshCatalog: () =>
         actionCatalogRecoveryRef.current?.refresh() ?? loadActionCatalog(),
-      activeTask: activeTaskIsVisible && activeTaskUuid && runOperation
-        ? { taskUuid: activeTaskUuid, actionRef: runOperation.actionRef }
-        : null,
+      activeTasks: activeRuns,
       refreshTask: queueDeviceActionTaskRefresh
     })
   }, [
-    activeTaskIsVisible,
-    activeTaskUuid,
+    activeRuns,
     loadActionCatalog,
     queueDeviceActionTaskRefresh,
-    refresh,
-    runOperation
+    refresh
   ])
 
   /**
@@ -471,21 +462,19 @@ export default function DevicePanel({
     action: DeviceAction,
     template: WorkflowActionNodeTemplate
   ) => {
+    const running = runStates[action.actionRef]?.kind
     if (
       !actionCatalog ||
-      runOperation?.state.kind === 'submitting' ||
-      runOperation?.state.kind === 'accepted' ||
-      runOperation?.state.kind === 'running' ||
-      runOperation?.state.kind === 'finishing'
+      running === 'submitting' ||
+      running === 'accepted' ||
+      running === 'running' ||
+      running === 'finishing'
     ) return
     if (!device.materialUuid) {
-      setRunOperation({
-        actionRef: action.actionRef,
-        state: {
-          kind: 'error',
-          message: '当前设备缺少运行标识，请刷新设备列表后重试',
-          retryable: false
-        }
+      setRunState(action.actionRef, {
+        kind: 'error',
+        message: '当前设备缺少运行标识，请刷新设备列表后重试',
+        retryable: false
       })
       return
     }
@@ -493,13 +482,10 @@ export default function DevicePanel({
     try {
       input = serializeDeviceActionInput(action, argumentDraft, template)
     } catch (error) {
-      setRunOperation({
-        actionRef: action.actionRef,
-        state: {
-          kind: 'error',
-          message: error instanceof Error ? error.message : 'Action 参数不合法',
-          retryable: false
-        }
+      setRunState(action.actionRef, {
+        kind: 'error',
+        message: error instanceof Error ? error.message : 'Action 参数不合法',
+        retryable: false
       })
       return
     }
@@ -509,15 +495,13 @@ export default function DevicePanel({
       materialUuid: device.materialUuid,
       input
     })
-    const previous = runAttemptRef.current
+    // 幂等键按动作分别保存：重试同一个动作复用原键，别的动作不受影响。
+    const previous = runAttemptRef.current.get(action.actionRef)
     const idempotencyKey = previous?.signature === signature
       ? previous.idempotencyKey
       : globalThis.crypto.randomUUID()
-    runAttemptRef.current = { signature, idempotencyKey }
-    setRunOperation({
-      actionRef: action.actionRef,
-      state: { kind: 'submitting', message: '正在创建正式任务…' }
-    })
+    runAttemptRef.current.set(action.actionRef, { signature, idempotencyKey })
+    setRunState(action.actionRef, { kind: 'submitting', message: '正在创建正式任务…' })
     try {
       const view = await services.deviceActionTasks.createDeviceActionTask({
         material_uuid: device.materialUuid,
@@ -532,61 +516,44 @@ export default function DevicePanel({
           action_name: action.actionName
         }
       })
-      runAttemptRef.current = null
+      runAttemptRef.current.delete(action.actionRef)
       feedbackByTaskRef.current.set(view.task_uuid, { cursor: 0, items: [] })
-      setRunOperation({
-        actionRef: action.actionRef,
-        state: projectDeviceActionTask(view, [])
-      })
+      setRunState(action.actionRef, projectDeviceActionTask(view, []))
       const [, taskRefresh] = await Promise.allSettled([
         refresh(),
         queueDeviceActionTaskRefresh(view.task_uuid, action.actionRef)
       ])
       if (taskRefresh.status === 'rejected') {
         const error = taskRefresh.reason
-        setRunOperation((current) => {
-          if (
-            !current ||
-            !('taskUuid' in current.state) ||
-            current.state.taskUuid !== view.task_uuid
-          ) {
-            return current
-          }
-          return {
-            ...current,
-            state: {
-              ...current.state,
-              message: error instanceof Error
-                ? `任务已接受，状态补读失败：${error.message}`
-                : '任务已接受，状态补读失败'
-            }
-          }
-        })
+        setRunState(action.actionRef, (current) => (
+          current && 'taskUuid' in current && current.taskUuid === view.task_uuid
+            ? {
+                ...current,
+                message: error instanceof Error
+                  ? `任务已接受，状态补读失败：${error.message}`
+                  : '任务已接受，状态补读失败'
+              }
+            : null
+        ))
       }
     } catch (error) {
       if (
         error instanceof ServiceError &&
         error.code === 'template_catalog_conflict'
       ) {
-        runAttemptRef.current = null
+        runAttemptRef.current.delete(action.actionRef)
         await Promise.all([loadActionCatalog(), refresh()])
-        setRunOperation({
-          actionRef: action.actionRef,
-          state: {
-            kind: 'error',
-            message: '动作信息已更新，请重新检查参数后运行',
-            retryable: false
-          }
+        setRunState(action.actionRef, {
+          kind: 'error',
+          message: '动作信息已更新，请重新检查参数后运行',
+          retryable: false
         })
         return
       }
-      setRunOperation({
-        actionRef: action.actionRef,
-        state: {
-          kind: 'error',
-          message: error instanceof Error ? error.message : '任务创建失败',
-          retryable: error instanceof ServiceError && error.retryable
-        }
+      setRunState(action.actionRef, {
+        kind: 'error',
+        message: error instanceof Error ? error.message : '任务创建失败',
+        retryable: error instanceof ServiceError && error.retryable
       })
     }
   }, [
@@ -595,38 +562,33 @@ export default function DevicePanel({
     loadActionCatalog,
     refresh,
     queueDeviceActionTaskRefresh,
-    runOperation?.state.kind,
-    services.deviceActionTasks
+    runStates,
+    services.deviceActionTasks,
+    setRunState
   ])
 
   const handleCancelActionTask = useCallback(async (taskUuid: string) => {
+    /** 把取消结果写到持有这个任务的那个动作上。 */
+    const noteOnTask = (message: string): void => {
+      setRunStates((current) => {
+        const entry = Object.entries(current).find(([, state]) =>
+          'taskUuid' in state && state.taskUuid === taskUuid)
+        if (!entry) return current
+        const [actionRef, state] = entry
+        return { ...current, [actionRef]: { ...state, message } }
+      })
+    }
     try {
       await services.workflow.commandWorkflowTask(taskUuid, {
         type: 'cancel',
         idempotency_key: globalThis.crypto.randomUUID(),
         description: '设备页取消单动作任务'
       })
-      setRunOperation((current) => current && 'taskUuid' in current.state
-        ? {
-            ...current,
-            state: {
-              ...current.state,
-              message: '取消命令已接受，等待 OS 确认生效'
-            }
-          }
-        : current)
+      noteOnTask('取消命令已接受，等待 OS 确认生效')
     } catch (error) {
-      setRunOperation((current) => current && 'taskUuid' in current.state
-        ? {
-            ...current,
-            state: {
-              ...current.state,
-              message: error instanceof Error
-                ? `取消任务失败：${error.message}`
-                : '取消任务失败，请重试'
-            }
-          }
-        : current)
+      noteOnTask(error instanceof Error
+        ? `取消任务失败：${error.message}`
+        : '取消任务失败，请重试')
     }
   }, [services.workflow])
 
@@ -730,21 +692,8 @@ export default function DevicePanel({
             actionCatalogError={actionCatalogError}
             canRunActionTask={canRunActionTask}
             connection={connection}
-            runState={
-              runOperation !== null && selectedAction !== null &&
-              runOperation.actionRef === selectedAction.actionRef
-                ? runOperation.state
-                : null
-            }
-            activeRunActionRef={
-              runOperation && (
-                runOperation.state.kind === 'submitting' ||
-                runOperation.state.kind === 'accepted' ||
-                runOperation.state.kind === 'running'
-              )
-                ? runOperation.actionRef
-                : null
-            }
+            runState={selectedAction ? runStates[selectedAction.actionRef] ?? null : null}
+            runningActionRefs={activeRuns.map((run) => run.actionRef)}
             onRunAction={(action, template) => {
               void handleRunAction(selectedDevice, action, template)
             }}

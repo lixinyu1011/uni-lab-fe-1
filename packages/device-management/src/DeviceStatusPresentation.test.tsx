@@ -167,7 +167,7 @@ describe('device status presentation', () => {
           canRunActionTask={false}
           connection={edgeStatus === 'online' ? 'connected' : 'disconnected'}
           runState={null}
-          activeRunActionRef={null}
+          runningActionRefs={[]}
           onRunAction={() => {}}
           onCancelActionTask={() => {}}
           canForceUnlock={false}
@@ -185,5 +185,66 @@ describe('device status presentation', () => {
     expect(onlineMarkup).not.toContain('提交时确认')
     expect(onlineMarkup).not.toContain('当前服务未提供占用明细')
     expect(onlineMarkup).not.toContain('占用未提供')
+  })
+
+  it('keeps other action nodes selectable while one action is running', () => {
+    const makeAction = (name: string, displayName: string) => ({
+      actionName: name,
+      actionRef: `pump-1.${name}`,
+      displayName,
+      label: displayName,
+      typeName: 'Dose',
+      isBusy: false,
+      busyStatusKnown: false,
+      currentJobId: null,
+      schema: null,
+      inputSchema: {},
+      outputSchema: {},
+      riskLevel: 'normal' as const
+    })
+    const dose = makeAction('dose', '加液')
+    const stop = makeAction('stop', '停止')
+    const markup = renderToStaticMarkup(
+      <DeviceWorkspace
+        device={{
+          id: 'pump-1',
+          materialUuid: '10000000-0000-4000-8000-000000000001',
+          deviceKey: '/devices/pump-1',
+          namespace: '/devices',
+          machineName: '一号泵',
+          online: true,
+          edgeStatus: 'online' as const,
+          dispatchable: true,
+          dispatchBlockReason: null,
+          executionOccupancies: null,
+          actions: [dose, stop],
+          displayName: '一号泵',
+          displayDetail: '本地'
+        }}
+        selectedAction={stop}
+        selectedActionRef={stop.actionRef}
+        argumentDraft={{}}
+        onSelectAction={() => {}}
+        onArgumentChange={() => {}}
+        actionTemplate={null}
+        actionCatalogLoading={false}
+        actionCatalogError={null}
+        canRunActionTask
+        connection="connected"
+        runState={null}
+        runningActionRefs={['pump-1.dose']}
+        onRunAction={() => {}}
+        onCancelActionTask={() => {}}
+        canForceUnlock={false}
+        unlockOperation={null}
+        onRequestUnlock={() => {}}
+      />
+    )
+
+    // 另一个动作在运行，不再禁用其余动作节点：多台设备可以同时调试。
+    const nodes = markup.match(/<button[^>]*data-device-management="action-node"[^>]*>/g) ?? []
+    expect(nodes).toHaveLength(2)
+    expect(nodes.some((node) => node.includes('disabled'))).toBe(false)
+    expect(markup).toContain('本页运行中')  // 运行中的动作有标注
   })
 })

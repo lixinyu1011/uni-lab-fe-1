@@ -2,7 +2,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { WorkflowRuntimeInvalidationEvent } from '@unilab/services'
 
 import {
-  shouldRecoverActiveDeviceActionTask,
   startDeviceActionTaskRecovery,
   type DeviceActionTaskRecoveryEnvironment
 } from './deviceActionTaskRecovery'
@@ -297,30 +296,5 @@ describe('device Action Task REST rehydrate recovery', () => {
     await vi.advanceTimersByTimeAsync(10_000)
     expect(read).toHaveBeenCalledTimes(3)
     recovery.dispose()
-  })
-})
-
-describe('active device action polling selection', () => {
-  it('only enables recovery for the action node active in the frontend', () => {
-    expect(shouldRecoverActiveDeviceActionTask(
-      'device.move',
-      'device.move',
-      'task-1'
-    )).toBe(true)
-    expect(shouldRecoverActiveDeviceActionTask(
-      'device.stop',
-      'device.move',
-      'task-1'
-    )).toBe(false)
-    expect(shouldRecoverActiveDeviceActionTask(
-      null,
-      'device.move',
-      'task-1'
-    )).toBe(false)
-    expect(shouldRecoverActiveDeviceActionTask(
-      'device.move',
-      'device.move',
-      null
-    )).toBe(false)
   })
 })

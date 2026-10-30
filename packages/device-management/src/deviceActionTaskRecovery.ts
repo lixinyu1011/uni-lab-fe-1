@@ -40,19 +40,6 @@ interface ActiveTaskState {
 const DEFAULT_POLL_INTERVAL_MS = 5_000
 const DEFAULT_MAX_BACKOFF_MS = 30_000
 
-/** 仅允许当前前端 active 的动作节点启动任务状态补读。 */
-export function shouldRecoverActiveDeviceActionTask(
-  selectedActionRef: string | null,
-  runningActionRef: string | null,
-  taskUuid: string | null
-): boolean {
-  return Boolean(
-    taskUuid &&
-    runningActionRef &&
-    selectedActionRef === runningActionRef
-  )
-}
-
 /**
  * 启动设备动作任务的 REST 状态复原（Rehydrate）协调器。
  *

@@ -154,7 +154,7 @@ export function DeviceWorkspace({
   canRunActionTask,
   connection,
   runState,
-  activeRunActionRef,
+  runningActionRefs,
   onRunAction,
   onCancelActionTask,
   canForceUnlock,
@@ -174,7 +174,8 @@ export function DeviceWorkspace({
   canRunActionTask: boolean
   connection: DeviceManagementConnection
   runState: DeviceActionRunState | null
-  activeRunActionRef: string | null
+  /** 本页已提交、仍在运行的动作；只用来标注，不禁用其他动作。 */
+  runningActionRefs: readonly string[]
   onRunAction: (
     action: DeviceAction,
     template: WorkflowActionNodeTemplate
@@ -280,10 +281,6 @@ export function DeviceWorkspace({
                   aria-pressed={action.actionRef === selectedActionRef}
                   aria-label={`${action.displayName} 动作节点`}
                   title={action.displayName}
-                  disabled={
-                    activeRunActionRef !== null &&
-                    action.actionRef !== activeRunActionRef
-                  }
                   onClick={() => onSelectAction(action.actionRef)}
                 >
                   <span className={deviceClass('edge-device__node-index')}>
@@ -293,7 +290,14 @@ export function DeviceWorkspace({
                     <strong>{action.displayName}</strong>
                     <code>{action.actionRef}</code>
                   </span>
-                  {action.isBusy ||
+                  {runningActionRefs.includes(action.actionRef) ? (
+                    <span
+                      className={deviceClass('edge-device__node-state', 'is-busy')}
+                      data-device-management="action-running"
+                    >
+                      本页运行中
+                    </span>
+                  ) : action.isBusy ||
                   occupancy ||
                   device.edgeStatus !== 'online' ||
                   action.busyStatusKnown !== false ||
