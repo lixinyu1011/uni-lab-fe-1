@@ -82,8 +82,8 @@ export function DeviceStatusMonitor({
   )
 }
 
-/** 设备状态标签：空闲、运行中、故障、离线，附原始取值。 */
-function DeviceStateBadge({ value }: { value: string }): React.JSX.Element {
+/** 设备状态标签：空闲、运行中、故障、离线，附原始取值；调度面板的设备列也用它。 */
+export function DeviceStateBadge({ value }: { value: string }): React.JSX.Element {
   const badge = STATUS_BADGES[value]
   if (!badge) return <code>{formatCell(value)}</code>
   return (

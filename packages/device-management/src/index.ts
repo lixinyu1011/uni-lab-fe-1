@@ -1,6 +1,7 @@
 import './DevicePanel.module.scss'
 
 export { default as DeviceManagementPanel } from './DevicePanel'
+export { SchedulerPanel } from './SchedulerPanel'
 export type {
   DeviceManagementBackend,
   DeviceManagementConnection,

@@ -15,6 +15,7 @@ import {
   RobotDebugDomainEntryWidget,
   RobotPointsDomainEntryWidget,
   RobotReagentsDomainEntryWidget,
+  SchedulerDomainEntryWidget,
   WorkflowDomainEntryWidget,
   WorkflowTasksDomainEntryWidget
 } from './unilab-workbench-navigator-widget'
@@ -34,6 +35,11 @@ export const OpenUniLabWorkflowView: Command = {
 export const OpenUniLabWorkflowTasksView: Command = {
   id: 'unilab.workbench.workflow-tasks.open',
   label: '打开工作流任务'
+}
+
+export const OpenUniLabSchedulerView: Command = {
+  id: 'unilab.workbench.scheduler.open',
+  label: '打开调度'
 }
 
 export const OpenUniLabMaterialView: Command = {
@@ -114,6 +120,19 @@ export class WorkflowTasksDomainEntryContribution
       widgetName: '工作流任务',
       defaultWidgetOptions: { area: 'left', rank: 78 },
       toggleCommandId: OpenUniLabWorkflowTasksView.id
+    })
+  }
+}
+
+@injectable()
+export class SchedulerDomainEntryContribution
+  extends AbstractViewContribution<SchedulerDomainEntryWidget> {
+  constructor() {
+    super({
+      widgetId: SchedulerDomainEntryWidget.ID,
+      widgetName: '调度',
+      defaultWidgetOptions: { area: 'left', rank: 79 },
+      toggleCommandId: OpenUniLabSchedulerView.id
     })
   }
 }
@@ -205,6 +224,9 @@ implements FrontendApplicationContribution {
   @inject(WorkflowTasksDomainEntryContribution)
   protected readonly workflowTasks!: WorkflowTasksDomainEntryContribution
 
+  @inject(SchedulerDomainEntryContribution)
+  protected readonly scheduler!: SchedulerDomainEntryContribution
+
   @inject(MaterialDomainEntryContribution)
   protected readonly material!: MaterialDomainEntryContribution
 
@@ -261,6 +283,10 @@ implements FrontendApplicationContribution {
       activate: false,
       reveal: false
     })
+    const scheduler = await this.scheduler.openView({
+      activate: false,
+      reveal: false
+    })
     const agent = await this.agent.openView({ activate: false, reveal: false })
 
     // rank 只影响新建部件；Theia 会先恢复持久化顺序，因此这里重新挂载并
@@ -273,7 +299,8 @@ implements FrontendApplicationContribution {
     await app.shell.addWidget(material, { area: 'left', rank: 76 })
     await app.shell.addWidget(workflow, { area: 'left', rank: 77 })
     await app.shell.addWidget(workflowTasks, { area: 'left', rank: 78 })
-    await app.shell.addWidget(agent, { area: 'left', rank: 79 })
+    await app.shell.addWidget(scheduler, { area: 'left', rank: 79 })
+    await app.shell.addWidget(agent, { area: 'left', rank: 80 })
     const activityBar = app.shell.getTabBarFor(device)
     for (const [index, widget] of [
       device,
@@ -284,6 +311,7 @@ implements FrontendApplicationContribution {
       material,
       workflow,
       workflowTasks,
+      scheduler,
       agent
     ].entries()) {
       activityBar?.insertTab(index, widget.title)

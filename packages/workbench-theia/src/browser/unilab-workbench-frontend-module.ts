@@ -24,7 +24,8 @@ import {
   UniLabDomainNavigationInitializer,
   UniLabWorkbenchContribution,
   WorkflowDomainEntryContribution,
-  WorkflowTasksDomainEntryContribution
+  WorkflowTasksDomainEntryContribution,
+  SchedulerDomainEntryContribution
 } from './unilab-workbench-contribution'
 import {
   DeviceDomainEntryWidget,
@@ -34,7 +35,8 @@ import {
   RobotPointsDomainEntryWidget,
   RobotReagentsDomainEntryWidget,
   WorkflowDomainEntryWidget,
-  WorkflowTasksDomainEntryWidget
+  WorkflowTasksDomainEntryWidget,
+  SchedulerDomainEntryWidget
 } from './unilab-workbench-navigator-widget'
 import { UniLabWorkbenchWidget } from './unilab-workbench-widget'
 import { WorkbenchViewState } from './workbench-view-state'
@@ -120,6 +122,13 @@ export default new ContainerModule((bind) => {
   bind(WidgetFactory).toDynamicValue((context) => ({
     id: WorkflowTasksDomainEntryWidget.ID,
     createWidget: () => context.container.get(WorkflowTasksDomainEntryWidget)
+  })).inSingletonScope()
+
+  bindViewContribution(bind, SchedulerDomainEntryContribution)
+  bind(SchedulerDomainEntryWidget).toSelf()
+  bind(WidgetFactory).toDynamicValue((context) => ({
+    id: SchedulerDomainEntryWidget.ID,
+    createWidget: () => context.container.get(SchedulerDomainEntryWidget)
   })).inSingletonScope()
 
   bindViewContribution(bind, MaterialDomainEntryContribution)

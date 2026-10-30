@@ -17,7 +17,8 @@ import {
 import { inject, injectable, postConstruct } from '@theia/core/shared/inversify'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import {
-  DeviceManagementPanel
+  DeviceManagementPanel,
+  SchedulerPanel
 } from '@unilab/device-management'
 import {
   MaterialStoreProvider,
@@ -1188,6 +1189,21 @@ function WorkbenchSurface({
       />
     </section>
   )
+  const schedulerSurface = (
+    <section
+      className="unilab-workbench__surface unilab-workbench__surface--scheduler"
+      aria-label="调度窗口"
+    >
+      <SchedulerPanel
+        services={services}
+        active={
+          viewMode === 'scheduler' &&
+          Boolean(selectedTarget.backend.apiUrl) &&
+          deviceConnection === 'connected'
+        }
+      />
+    </section>
+  )
   const materialSurface = (
     <section
       className="unilab-workbench__surface unilab-workbench__surface--material"
@@ -1350,6 +1366,11 @@ function WorkbenchSurface({
               mountedDomains.current,
               'workflow-tasks',
               workflowTasksSurface
+            )}
+            scheduler={mountedSurface(
+              mountedDomains.current,
+              'scheduler',
+              schedulerSurface
             )}
             material={mountedSurface(
               mountedDomains.current,

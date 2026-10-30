@@ -99,6 +99,20 @@ export class WorkflowTasksDomainEntryWidget extends UniLabDomainEntryWidget {
 }
 
 @injectable()
+export class SchedulerDomainEntryWidget extends UniLabDomainEntryWidget {
+  static readonly ID = 'unilab:scheduler-navigation'
+  protected readonly widgetId = SchedulerDomainEntryWidget.ID
+  protected readonly entry: DomainEntryDefinition = {
+    mode: 'scheduler',
+    label: '调度',
+    caption: '调度 · 执行、排队与设备占用',
+    description: '查看 OS 调度器正在执行和排队的任务、排队原因与设备占用，可直接取消任务或恢复工站调度。',
+    iconClass: 'unilab-activity-icon--scheduler',
+    eyebrow: 'SCHEDULER'
+  }
+}
+
+@injectable()
 export class MaterialDomainEntryWidget extends UniLabDomainEntryWidget {
   static readonly ID = 'unilab:material-navigation'
   protected readonly widgetId = MaterialDomainEntryWidget.ID

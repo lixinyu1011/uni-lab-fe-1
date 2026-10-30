@@ -33,6 +33,7 @@ import {
 export type WorkbenchMountedDomain =
   | 'workflow'
   | 'workflow-tasks'
+  | 'scheduler'
   | 'material'
   | 'device'
   | 'robot-workstation'
@@ -95,6 +96,7 @@ export function recordMountedWorkbenchDomains(
 ): void {
   if (isWorkflowWorkbenchView(mode)) mountedDomains.add('workflow')
   if (mode === 'workflow-tasks') mountedDomains.add('workflow-tasks')
+  if (mode === 'scheduler') mountedDomains.add('scheduler')
   if (
     mode === 'material' || mode === 'split' || mode === 'device-material'
   ) mountedDomains.add('material')
@@ -159,6 +161,7 @@ export function workbenchViewLabel(mode: WorkbenchViewMode): string {
   if (mode === 'device-material') return '仪器设备 + 物料'
   if (mode === 'workflow') return '工作流'
   if (mode === 'workflow-tasks') return '工作流任务'
+  if (mode === 'scheduler') return '调度'
   if (mode === 'material') return '物料'
   if (mode === 'device') return '仪器设备'
   if (isRobotWorkbenchViewMode(mode)) return workstationViewLabel(mode)

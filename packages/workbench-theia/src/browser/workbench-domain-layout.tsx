@@ -18,6 +18,7 @@ export function WorkbenchDomainLayout({
   mode,
   workflow,
   workflowTasks,
+  scheduler,
   material,
   device,
   robotWorkstation
@@ -25,6 +26,7 @@ export function WorkbenchDomainLayout({
   mode: WorkbenchViewMode
   workflow: React.ReactNode
   workflowTasks: React.ReactNode
+  scheduler: React.ReactNode
   material: React.ReactNode
   device: React.ReactNode
   robotWorkstation: React.ReactNode
@@ -70,6 +72,7 @@ export function WorkbenchDomainLayout({
     : undefined
   const workflowVisible = mode === 'workflow' || mode === 'split'
   const workflowTasksVisible = mode === 'workflow-tasks'
+  const schedulerVisible = mode === 'scheduler'
   const materialVisible = mode === 'material' || mode === 'split' ||
     mode === 'device-material'
   const deviceVisible = mode === 'device' || mode === 'device-material'
@@ -99,6 +102,15 @@ export function WorkbenchDomainLayout({
         inert={!workflowTasksVisible}
       >
         {workflowTasks}
+      </div>
+      <div
+        className={`unilab-workbench__domain-slot is-scheduler${
+          schedulerVisible ? '' : ' is-inactive'
+        }`}
+        aria-hidden={!schedulerVisible}
+        inert={!schedulerVisible}
+      >
+        {scheduler}
       </div>
       <div
         className="unilab-workbench__splitter"

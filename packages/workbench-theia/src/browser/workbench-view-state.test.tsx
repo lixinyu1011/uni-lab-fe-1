@@ -132,6 +132,30 @@ describe('Workbench domain view presentation', () => {
     ])
   })
 
+  it('opens the scheduler as an exclusive surface and returns to devices', () => {
+    const state = new WorkbenchViewState()
+    state.toggle('device')
+    state.toggle('scheduler')
+    expect(state.currentMode).toBe('scheduler')
+    expect(state.isVisible('device')).toBe(false)
+    state.toggle('device')
+    expect(state.currentMode).toBe('device')
+
+    const markup = renderToStaticMarkup(
+      <WorkbenchDomainLayout
+        mode="scheduler"
+        workflow={<section data-testid="workflow-surface" />}
+        workflowTasks={<section data-testid="workflow-tasks-surface" />}
+        scheduler={<section data-testid="scheduler-surface" />}
+        material={<section data-testid="material-surface" />}
+        device={<section data-testid="device-surface" />}
+        robotWorkstation={<section data-testid="robot-workstation-surface" />}
+      />
+    )
+    expect(markup).toContain('class="unilab-workbench__domain-slot is-scheduler"')
+    expect(markup).toContain('class="unilab-workbench__domain-slot is-device is-inactive"')
+  })
+
   it('presents an instrument entry without nesting the other domains', () => {
     const markup = renderToStaticMarkup(
       <DomainEntryPanel
@@ -160,6 +184,7 @@ describe('Workbench domain view presentation', () => {
         mode="split"
         workflow={<section data-testid="workflow-surface" />}
         workflowTasks={<section data-testid="workflow-tasks-surface" />}
+        scheduler={<section data-testid="scheduler-surface" />}
         material={<section data-testid="material-surface" />}
         device={<section data-testid="device-surface" />}
         robotWorkstation={<section data-testid="robot-workstation-surface" />}
@@ -179,6 +204,7 @@ describe('Workbench domain view presentation', () => {
         mode="material"
         workflow={<section data-testid="workflow-surface" />}
         workflowTasks={<section data-testid="workflow-tasks-surface" />}
+        scheduler={<section data-testid="scheduler-surface" />}
         material={<section data-testid="material-surface" />}
         device={<section data-testid="device-surface" />}
         robotWorkstation={<section data-testid="robot-workstation-surface" />}
@@ -206,6 +232,7 @@ describe('Workbench domain view presentation', () => {
         mode="device"
         workflow={<section data-testid="workflow-surface" />}
         workflowTasks={<section data-testid="workflow-tasks-surface" />}
+        scheduler={<section data-testid="scheduler-surface" />}
         material={<section data-testid="material-surface" />}
         device={<section data-testid="device-surface" />}
         robotWorkstation={<section data-testid="robot-workstation-surface" />}
@@ -224,6 +251,7 @@ describe('Workbench domain view presentation', () => {
         mode="device-material"
         workflow={<section data-testid="workflow-surface" />}
         workflowTasks={<section data-testid="workflow-tasks-surface" />}
+        scheduler={<section data-testid="scheduler-surface" />}
         material={<section data-testid="material-surface" />}
         device={<section data-testid="device-surface" />}
         robotWorkstation={<section data-testid="robot-workstation-surface" />}
@@ -257,6 +285,7 @@ describe('Workbench domain view presentation', () => {
         mode="robot-bench"
         workflow={<section data-testid="workflow-surface" />}
         workflowTasks={<section data-testid="workflow-tasks-surface" />}
+        scheduler={<section data-testid="scheduler-surface" />}
         material={<section data-testid="material-surface" />}
         device={<section data-testid="device-surface" />}
         robotWorkstation={<section data-testid="robot-workstation-surface" />}

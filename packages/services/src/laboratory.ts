@@ -32,6 +32,15 @@ import {
   type StationError
 } from './stationControl'
 import {
+  forceReleaseExecutionLock,
+  loadSchedulerSnapshot,
+  loadTaskExecutionLocks,
+  resolveUncertainJob,
+  type SchedulerSnapshot,
+  type TaskExecutionLock,
+  type TaskExecutionLocks
+} from './stationScheduler'
+import {
   getRuntimeDevices,
   mapRuntimeDeviceAction,
   mapRuntimeResource,
@@ -251,6 +260,26 @@ export function createLaboratoryService(
       error: StationError
     ): Promise<void> {
       return cancelStationErrorTask(http, control, error)
+    },
+
+    /** 读取调度快照：活动与近期任务、当前执行占用，供调度面板轮询。 */
+    async getSchedulerSnapshot(signal?: AbortSignal): Promise<SchedulerSnapshot> {
+      return loadSchedulerSnapshot(http, signal)
+    },
+
+    /** 读取任务的执行锁与人工释放资格。 */
+    async getTaskExecutionLocks(taskUuid: string, signal?: AbortSignal): Promise<TaskExecutionLocks> {
+      return loadTaskExecutionLocks(http, taskUuid, signal)
+    },
+
+    /** 现场核对后人工释放已结束作业的执行锁。 */
+    async releaseExecutionLock(taskUuid: string, lock: TaskExecutionLock, reason: string): Promise<string> {
+      return forceReleaseExecutionLock(http, taskUuid, lock, reason)
+    },
+
+    /** 现场核对后把结果不确定的作业按已取消结算。 */
+    async resolveUncertainJob(jobUuid: string, reason: string): Promise<{ pendingEdgeConfirmation: boolean }> {
+      return resolveUncertainJob(http, jobUuid, reason)
     },
 
     async getDeviceActions(deviceId: string): Promise<DeviceAction[]> {
