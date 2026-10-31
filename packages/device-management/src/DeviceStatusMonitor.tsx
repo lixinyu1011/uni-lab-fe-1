@@ -1,5 +1,15 @@
+import { useEffect, useState } from 'react'
+
 import { deviceClass } from './deviceStyles'
 import { formatTime } from './DevicePanelPresentation'
+import {
+  checkSiteDraft,
+  reportedSiteDraft,
+  siteWriteBusy,
+  siteWriteStatus,
+  type SiteDraft,
+  type SiteWriter
+} from './siteWrite'
 import type { DeviceStatusSnapshot } from './useDeviceStatus'
 
 /** 设备 status 只有四种取值：按中文标签和颜色显示，其他取值原样显示。 */
@@ -32,12 +42,15 @@ export function orderStatusEntries(properties: Record<string, string>): [string,
  * 展示选中设备最近一次由 Edge 上报的状态属性。
  *
  * @param props 状态快照；属性值是发布文本，JSON 数组/对象按表格展示。
+ *   siteWriter 存在时（设备有 write_site 动作），sites 表的 reserved、type 可以改并写入 PLC。
  * @returns 带更新时间、错误提示和属性列表的状态监控区域。
  */
 export function DeviceStatusMonitor({
-  snapshot
+  snapshot,
+  siteWriter
 }: {
   snapshot: DeviceStatusSnapshot
+  siteWriter?: SiteWriter
 }): React.JSX.Element {
   const entries = orderStatusEntries(snapshot.properties ?? {})
   return (
@@ -68,7 +81,9 @@ export function DeviceStatusMonitor({
               <dd>
                 {name === 'status'
                   ? <DeviceStateBadge value={value} />
-                  : <StatusValue value={parseStatusValue(value)} />}
+                  : name === 'sites' && siteWriter && isSiteList(parseStatusValue(value))
+                    ? <SiteEditor published={value} writer={siteWriter} />
+                    : <StatusValue value={parseStatusValue(value)} />}
               </dd>
             </div>
           ))}
@@ -93,6 +108,120 @@ export function DeviceStateBadge({ value }: { value: string }): React.JSX.Elemen
     >
       {badge.label} {value}
     </span>
+  )
+}
+
+/** sites 是带 site 编号的对象数组时才能逐行编辑。 */
+function isSiteList(value: unknown): value is Record<string, unknown>[] {
+  return Array.isArray(value) && value.length > 0 &&
+    value.every((row) => isPlainObject(row) && Number.isInteger(row.site))
+}
+
+/**
+ * 可编辑的库位表：reserved 用勾选框、type 用数字框，改过的行点“写入”交给设备的 write_site 动作。
+ *
+ * @param props published 是 sites 的发布文本；writer 提交写入并给出最近一次写入的状态。
+ * @returns 库位表和下方的一句写入状态。
+ */
+function SiteEditor({
+  published,
+  writer
+}: {
+  published: string
+  writer: SiteWriter
+}): React.JSX.Element {
+  const rows = parseStatusValue(published) as Record<string, unknown>[]
+  // 只保存改过、还没写进 PLC 的行；没改的行跟着上报值走。
+  const [drafts, setDrafts] = useState<Readonly<Record<number, SiteDraft>>>({})
+  useEffect(() => {
+    // 上报值已经等于编辑值（写入成功），就不再保留这一行的编辑值。
+    setDrafts((current) => {
+      const done = (parseStatusValue(published) as Record<string, unknown>[]).filter((row) => {
+        const draft = current[Number(row.site)]
+        return draft && !checkSiteDraft(draft, reportedSiteDraft(row)).changed
+      })
+      if (done.length === 0) return current
+      const next = { ...current }
+      for (const row of done) delete next[Number(row.site)]
+      return next
+    })
+  }, [published])
+  const busy = siteWriteBusy(writer.state)
+  const edit = (site: number, reported: SiteDraft, next: SiteDraft): void => {
+    setDrafts((current) => {
+      const rest = { ...current }
+      delete rest[site]
+      return checkSiteDraft(next, reported).changed ? { ...rest, [site]: next } : rest
+    })
+  }
+  return (
+    <div data-device-management="site-editor">
+      <table className={deviceClass('edge-device__status-table', 'edge-device__site-editor')}>
+        <thead>
+          <tr>
+            <th>site</th>
+            <th>occupied</th>
+            <th>reserved</th>
+            <th>type</th>
+            <th>consistent</th>
+            <th>写入</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row) => {
+            const site = Number(row.site)
+            const reported = reportedSiteDraft(row)
+            const draft = drafts[site] ?? reported
+            const { changed, type } = checkSiteDraft(draft, reported)
+            const blocked = writer.disabledReason
+            return (
+              <tr key={site} data-site-edited={changed || undefined}>
+                <td>{formatCell(row.site)}</td>
+                <td>{formatCell(row.occupied)}</td>
+                <td>
+                  <input
+                    type="checkbox"
+                    aria-label={`库位 ${site} reserved`}
+                    checked={draft.reserved}
+                    disabled={busy}
+                    onChange={(event) => edit(site, reported, { ...draft, reserved: event.target.checked })}
+                  />
+                </td>
+                <td>
+                  <input
+                    type="number"
+                    aria-label={`库位 ${site} type`}
+                    min={0}
+                    max={32767}
+                    step={1}
+                    value={draft.type}
+                    disabled={busy}
+                    onChange={(event) => edit(site, reported, { ...draft, type: event.target.value })}
+                  />
+                </td>
+                <td>{formatCell(row.consistent)}</td>
+                <td>
+                  <button
+                    type="button"
+                    disabled={!changed || type === null || busy || blocked !== null}
+                    title={blocked ?? (changed && type === null ? 'type 须是 0..32767 的整数' : undefined)}
+                    onClick={() => {
+                      if (type !== null) writer.write(site, draft.reserved, type)
+                    }}
+                  >
+                    写入
+                  </button>
+                  {changed ? <small>上报 {String(reported.reserved)} / {reported.type}</small> : null}
+                </td>
+              </tr>
+            )
+          })}
+        </tbody>
+      </table>
+      <p className={deviceClass('edge-device__site-editor-status')} role="status">
+        {writer.disabledReason ?? siteWriteStatus(writer.state)}
+      </p>
+    </div>
   )
 }
 

@@ -26,6 +26,7 @@ import {
 } from './DevicePanelPresentation'
 import { shortIdentifier } from './devicePanelFormat'
 import { DeviceStatusMonitor } from './DeviceStatusMonitor'
+import type { SiteWriter } from './siteWrite'
 import type { DeviceStatusSnapshot } from './useDeviceStatus'
 
 export function ConnectionSummary({
@@ -160,7 +161,8 @@ export function DeviceWorkspace({
   canForceUnlock,
   unlockOperation,
   onRequestUnlock,
-  status
+  status,
+  siteWriter
 }: {
   device: ManagedDevice
   selectedAction: DeviceAction | null
@@ -186,6 +188,8 @@ export function DeviceWorkspace({
   onRequestUnlock: (device: ManagedDevice, action: DeviceAction) => void
   /** 选中设备的状态监控快照；未提供时不渲染状态监控。 */
   status?: DeviceStatusSnapshot
+  /** 设备有 write_site 动作时，状态监控的 sites 表可直接改 reserved、type 并写入。 */
+  siteWriter?: SiteWriter
 }): React.JSX.Element {
   const busyActionCount = device.actions.filter(
     (action) => action.isBusy
@@ -400,7 +404,7 @@ export function DeviceWorkspace({
               选择一个动作节点后配置参数并运行。
             </div>
           )}
-          {status ? <DeviceStatusMonitor snapshot={status} /> : null}
+          {status ? <DeviceStatusMonitor snapshot={status} siteWriter={siteWriter} /> : null}
         </section>
       </div>
     </div>

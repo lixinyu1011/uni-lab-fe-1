@@ -30,6 +30,7 @@ import {
   type DeviceActionCatalogRecovery
 } from './deviceActionCatalogRecovery'
 import { refreshDevicePanelState } from './devicePanelRefresh'
+import { SITE_WRITE_ACTION, siteWriteDraft, type SiteWriter } from './siteWrite'
 import {
   ConnectionSummary,
   DeviceListItem,
@@ -454,13 +455,15 @@ export default function DevicePanel({
    * @param device 当前选择的设备。
    * @param action 当前选择的动作。
    * @param template 动作对应的工作流节点模板（WorkflowNodeTemplate）。
+   * @param draft 参数草稿；默认用动作参数表单里的草稿（状态监控写库位时传自己的）。
    * @returns 提交及首次补水完成后返回无。
    * @throws 异常在回调内投影为可见错误状态，不向事件循环传播。
    */
   const handleRunAction = useCallback(async (
     device: ManagedDevice,
     action: DeviceAction,
-    template: WorkflowActionNodeTemplate
+    template: WorkflowActionNodeTemplate,
+    draft: ArgumentDraft = argumentDraft
   ) => {
     const running = runStates[action.actionRef]?.kind
     if (
@@ -480,7 +483,7 @@ export default function DevicePanel({
     }
     let input: Record<string, unknown>
     try {
-      input = serializeDeviceActionInput(action, argumentDraft, template)
+      input = serializeDeviceActionInput(action, draft, template)
     } catch (error) {
       setRunState(action.actionRef, {
         kind: 'error',
@@ -591,6 +594,31 @@ export default function DevicePanel({
         : '取消任务失败，请重试')
     }
   }, [services.workflow])
+
+  // 设备有 write_site 动作时，状态监控的 sites 表可以直接改 reserved、type，写入走同一个单动作任务。
+  const siteWriteProjection = useMemo(
+    () => projectSelectedDeviceAction(
+      actionCatalog,
+      selectedDevice?.actions.find((action) => action.actionName === SITE_WRITE_ACTION) ?? null,
+      selectedDevice?.resourceTemplateUuid
+    ),
+    [actionCatalog, selectedDevice]
+  )
+  const siteWriter = useMemo<SiteWriter | undefined>(() => {
+    const { action, template } = siteWriteProjection
+    if (!selectedDevice || !action || !template) return undefined
+    return {
+      write: (site, reserved, type) => {
+        void handleRunAction(selectedDevice, action, template, siteWriteDraft(site, reserved, type))
+      },
+      state: runStates[action.actionRef] ?? null,
+      disabledReason: !canRunActionTask
+        ? '当前连接不允许运行设备动作，不能写入'
+        : connection !== 'connected' || selectedDevice.edgeStatus !== 'online'
+          ? '设备未连接，不能写入'
+          : null
+    }
+  }, [canRunActionTask, connection, handleRunAction, runStates, selectedDevice, siteWriteProjection])
 
   return (
     <>
@@ -704,6 +732,7 @@ export default function DevicePanel({
             unlockOperation={unlockOperation}
             onRequestUnlock={handleRequestUnlock}
             status={selectedDeviceStatus}
+            siteWriter={siteWriter}
           />
         ) : (
           <div className={deviceClass('device-empty device-empty--detail')}>

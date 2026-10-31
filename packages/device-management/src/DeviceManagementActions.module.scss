@@ -536,6 +536,37 @@
   font-size: 11px;
 }
 
+// 可编辑库位表（设备有 write_site 动作时）：reserved 勾选、type 数字框、逐行写入。
+.edge-device__site-editor input[type='number'] {
+  width: 64px;
+  font: inherit;
+}
+
+.edge-device__site-editor button {
+  padding: 1px 8px;
+  font: inherit;
+  cursor: pointer;
+
+  &:disabled {
+    cursor: not-allowed;
+  }
+}
+
+.edge-device__site-editor small {
+  margin-left: 6px;
+  color: var(--unilab-color-text-muted);
+}
+
+.edge-device__site-editor tr[data-site-edited] td {
+  background: var(--unilab-color-warning-soft, var(--unilab-color-surface-subtle));
+}
+
+.edge-device__site-editor-status {
+  margin: 6px 0 0;
+  color: var(--unilab-color-text-muted);
+  font-size: 11px;
+}
+
 // 设备状态标签：空闲绿、运行中黄、故障红、离线灰；status 固定排在第一行。
 .edge-device__status-list dd > .edge-device__status-badge {
   display: inline-flex;
