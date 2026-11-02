@@ -1,6 +1,7 @@
 import type {
   DeviceAction,
   DeviceExecutionOccupancy,
+  Services,
   WorkflowActionNodeTemplate
 } from '@unilab/services'
 
@@ -25,7 +26,7 @@ import {
   type ArgumentDraft
 } from './DevicePanelPresentation'
 import { shortIdentifier } from './devicePanelFormat'
-import { DeviceStatusMonitor } from './DeviceStatusMonitor'
+import { DeviceStatusMonitor, LiveDeviceStatusMonitor } from './DeviceStatusMonitor'
 import type { SiteWriter } from './siteWrite'
 import type { DeviceStatusSnapshot } from './useDeviceStatus'
 
@@ -162,6 +163,7 @@ export function DeviceWorkspace({
   unlockOperation,
   onRequestUnlock,
   status,
+  statusFeed,
   siteWriter
 }: {
   device: ManagedDevice
@@ -186,8 +188,10 @@ export function DeviceWorkspace({
   canForceUnlock: boolean
   unlockOperation: UnlockOperation | null
   onRequestUnlock: (device: ManagedDevice, action: DeviceAction) => void
-  /** 选中设备的状态监控快照；未提供时不渲染状态监控。 */
+  /** 选中设备的状态监控快照（静态展示用）；未提供且没有 statusFeed 时不渲染状态监控。 */
   status?: DeviceStatusSnapshot
+  /** 状态监控自己轮询选中设备：轮询结果只在状态监控里，状态变化不重绘整个工作区。 */
+  statusFeed?: { services: Services; active: boolean }
   /** 设备有 write_site 动作时，状态监控的 sites 表可直接改 reserved、type 并写入。 */
   siteWriter?: SiteWriter
 }): React.JSX.Element {
@@ -404,7 +408,14 @@ export function DeviceWorkspace({
               选择一个动作节点后配置参数并运行。
             </div>
           )}
-          {status ? <DeviceStatusMonitor snapshot={status} siteWriter={siteWriter} /> : null}
+          {statusFeed ? (
+            <LiveDeviceStatusMonitor
+              services={statusFeed.services}
+              deviceId={device.id}
+              active={statusFeed.active}
+              siteWriter={siteWriter}
+            />
+          ) : status ? <DeviceStatusMonitor snapshot={status} siteWriter={siteWriter} /> : null}
         </section>
       </div>
     </div>

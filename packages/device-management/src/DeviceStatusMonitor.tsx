@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react'
+import { memo, useEffect, useState } from 'react'
+import type { Services } from '@unilab/services'
 
 import { deviceClass } from './deviceStyles'
 import { formatTime } from './DevicePanelPresentation'
@@ -10,7 +11,7 @@ import {
   type SiteDraft,
   type SiteWriter
 } from './siteWrite'
-import type { DeviceStatusSnapshot } from './useDeviceStatus'
+import { useDeviceStatus, type DeviceStatusSnapshot } from './useDeviceStatus'
 
 /** 设备 status 只有四种取值：按中文标签和颜色显示，其他取值原样显示。 */
 const STATUS_BADGES: Readonly<Record<string, { label: string; tone: string }>> = {
@@ -39,13 +40,35 @@ export function orderStatusEntries(properties: Record<string, string>): [string,
 }
 
 /**
- * 展示选中设备最近一次由 Edge 上报的状态属性。
+ * 自己轮询选中设备的状态并展示：轮询结果只放在这个组件里，状态变了才重绘状态监控这一块，
+ * 设备列表、动作表单等页面其他部分不跟着刷新；读到的状态没变时什么都不重绘。
+ *
+ * @param props 服务组合、选中设备物料 UUID、是否允许轮询，以及可选的库位写入。
+ * @returns 状态监控区域。
+ */
+export function LiveDeviceStatusMonitor({
+  services,
+  deviceId,
+  active,
+  siteWriter
+}: {
+  services: Services
+  deviceId: string
+  active: boolean
+  siteWriter?: SiteWriter
+}): React.JSX.Element {
+  const snapshot = useDeviceStatus({ services, deviceId, active })
+  return <DeviceStatusMonitor snapshot={snapshot} siteWriter={siteWriter} />
+}
+
+/**
+ * 展示选中设备最近一次由 Edge 上报的状态属性。快照对象不变时不重绘；某个属性变了只重绘那一行。
  *
  * @param props 状态快照；属性值是发布文本，JSON 数组/对象按表格展示。
  *   siteWriter 存在时（设备有 write_site 动作），sites 表的 reserved、type 可以改并写入 PLC。
- * @returns 带更新时间、错误提示和属性列表的状态监控区域。
+ * @returns 带变化时间、错误提示和属性列表的状态监控区域。
  */
-export function DeviceStatusMonitor({
+export const DeviceStatusMonitor = memo(function DeviceStatusMonitor({
   snapshot,
   siteWriter
 }: {
@@ -65,7 +88,7 @@ export function DeviceStatusMonitor({
           <h3>Edge 上报的设备状态</h3>
         </div>
         <small>
-          {snapshot.updatedAt ? `更新于 ${formatTime(snapshot.updatedAt)}` : '读取中…'}
+          {snapshot.updatedAt ? `状态变化于 ${formatTime(snapshot.updatedAt)}` : '读取中…'}
         </small>
       </div>
       {snapshot.error ? (
@@ -76,16 +99,12 @@ export function DeviceStatusMonitor({
       {entries.length ? (
         <dl className={deviceClass('edge-device__status-list')}>
           {entries.map(([name, value]) => (
-            <div key={name}>
-              <dt>{name}</dt>
-              <dd>
-                {name === 'status'
-                  ? <DeviceStateBadge value={value} />
-                  : name === 'sites' && siteWriter && isSiteList(parseStatusValue(value))
-                    ? <SiteEditor published={value} writer={siteWriter} />
-                    : <StatusValue value={parseStatusValue(value)} />}
-              </dd>
-            </div>
+            <StatusEntry
+              key={name}
+              name={name}
+              value={value}
+              siteWriter={name === 'sites' ? siteWriter : undefined}
+            />
           ))}
         </dl>
       ) : snapshot.properties ? (
@@ -95,7 +114,31 @@ export function DeviceStatusMonitor({
       ) : null}
     </section>
   )
-}
+})
+
+/** 一个状态属性；发布文本没变就不重绘（库位、条码表格很大，别的属性变化时不跟着重算）。 */
+const StatusEntry = memo(function StatusEntry({
+  name,
+  value,
+  siteWriter
+}: {
+  name: string
+  value: string
+  siteWriter?: SiteWriter
+}): React.JSX.Element {
+  return (
+    <div>
+      <dt>{name}</dt>
+      <dd>
+        {name === 'status'
+          ? <DeviceStateBadge value={value} />
+          : name === 'sites' && siteWriter && isSiteList(parseStatusValue(value))
+            ? <SiteEditor published={value} writer={siteWriter} />
+            : <StatusValue value={parseStatusValue(value)} />}
+      </dd>
+    </div>
+  )
+})
 
 /** 设备状态标签：空闲、运行中、故障、离线，附原始取值；调度面板的设备列也用它。 */
 export function DeviceStateBadge({ value }: { value: string }): React.JSX.Element {

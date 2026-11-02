@@ -15,7 +15,7 @@ import {
 
 import type { ManagedDevice } from './deviceCatalog'
 import { useDevices } from './useDevices'
-import { useDeviceStatus } from './useDeviceStatus'
+import { keepIfEqual } from './stableState'
 import { StationDispatchControl } from './StationDispatchControl'
 import {
   deviceActionDraftStorageKey,
@@ -133,7 +133,9 @@ export default function DevicePanel({
   ): void => {
     setRunStates((current) => {
       const value = typeof next === 'function' ? next(current[actionRef]) : next
-      return value === null ? current : { ...current, [actionRef]: value }
+      // 任务恢复每隔几秒补读一次：读到的运行状态没变就保留原对象，整页不重绘。
+      if (value === null || keepIfEqual(current[actionRef], value) === current[actionRef]) return current
+      return { ...current, [actionRef]: value }
     })
   }, [])
 
@@ -144,11 +146,9 @@ export default function DevicePanel({
       ?? null,
     [devices, selectedDeviceId]
   )
-  const selectedDeviceStatus = useDeviceStatus({
-    services,
-    deviceId: selectedDevice?.id ?? null,
-    active: active && backendEnabled && connection === 'connected'
-  })
+  // 状态监控自己轮询（LiveDeviceStatusMonitor）：每 2 秒读一次，状态变了只重绘状态监控，不重绘整个设备页。
+  const statusActive = active && backendEnabled && connection === 'connected'
+  const statusFeed = useMemo(() => ({ services, active: statusActive }), [services, statusActive])
   const selectedCatalogAction = useMemo(
     () =>
       selectedDevice?.actions.find(
@@ -731,7 +731,7 @@ export default function DevicePanel({
             canForceUnlock={canForceUnlock}
             unlockOperation={unlockOperation}
             onRequestUnlock={handleRequestUnlock}
-            status={selectedDeviceStatus}
+            statusFeed={statusFeed}
             siteWriter={siteWriter}
           />
         ) : (

@@ -76,6 +76,7 @@ export function SchedulerPanel({
   const [now, setNow] = useState(() => Date.now())
   const fastUntil = useRef(0)
   const refreshNow = useRef<() => void>(() => undefined)
+  const lastRead = useRef('')  // 上一次读到的调度快照和设备状态（JSON 文本）
 
   const load = useCallback(async (signal?: AbortSignal) => {
     try {
@@ -84,9 +85,13 @@ export function SchedulerPanel({
         services.laboratory.getDeviceStatuses(signal).catch(() => null)
       ])
       if (signal?.aborted) return
+      setReadError(null)
+      // 读到的内容和上一次一样就不更新状态，调度面板不重绘。
+      const text = JSON.stringify([next, nextStatuses])
+      if (text === lastRead.current) return
+      lastRead.current = text
       setSnapshot(next)
       if (nextStatuses) setStatuses(nextStatuses)
-      setReadError(null)
       setUpdatedAt(new Date().toISOString())
     } catch (error) {
       if (signal?.aborted) return
@@ -132,12 +137,14 @@ export function SchedulerPanel({
     return () => subscription.dispose()
   }, [active, services.capabilities.workflow.subscribeEvents, services.workflow])
 
-  // 时长每秒走一次。
+  // 时长每秒走一次；只有还没结束的任务（运行、排队、等待）和未释放的占用要显示走动的时长，都没有时不走，面板不重绘。
+  const clockNeeded = Boolean(snapshot?.tasks.some((task) => !task.finishedAt) || snapshot?.occupancies?.length)
   useEffect(() => {
-    if (!active) return
+    if (!active || !clockNeeded) return
+    setNow(Date.now())
     const timer = globalThis.setInterval(() => setNow(Date.now()), 1000)
     return () => globalThis.clearInterval(timer)
-  }, [active])
+  }, [active, clockNeeded])
 
   const setCommand = (taskUuid: string, phase: CommandPhase | null) => {
     setCommands((current) => {

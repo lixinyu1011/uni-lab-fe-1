@@ -1,12 +1,15 @@
 import { useEffect, useState, type Dispatch, type SetStateAction } from 'react'
 import type { DeviceStatusProperties, Services } from '@unilab/services'
 
+import { keepIfEqual } from './stableState'
+
 /** 状态监控轮询周期，与设备驱动 @topic_config 的默认 2 秒发布周期一致。 */
 export const DEVICE_STATUS_POLL_MS = 2000
 
 export interface DeviceStatusSnapshot {
   /** 当前设备最近上报的状态属性；null 表示尚未读到。 */
   properties: DeviceStatusProperties | null
+  /** 状态属性最近一次变化的时间；轮询读到同样的值不更新，界面也不重绘。 */
   updatedAt: number | null
   error: string | null
 }
@@ -45,6 +48,7 @@ export function useDeviceStatus({
 
 /**
  * 立即读取一次设备状态，之后每次读取结束再等一个周期，避免请求堆积。
+ * 读到的属性和上一次相同时保留原快照对象，订阅它的组件不会重新渲染。
  *
  * @param props 读取函数、设备物料 UUID、快照回调和轮询周期。
  * @returns 停止函数：取消进行中的请求并清除下一次定时。
@@ -67,13 +71,16 @@ export function pollDeviceStatus({
     try {
       const statuses = await load(controller.signal)
       if (controller.signal.aborted) return
-      onChange({ properties: statuses[deviceId] ?? {}, updatedAt: Date.now(), error: null })
+      const properties = statuses[deviceId] ?? {}
+      onChange((previous) =>
+        previous.error === null && previous.properties !== null &&
+        keepIfEqual(previous.properties, properties) === previous.properties
+          ? previous
+          : { properties, updatedAt: Date.now(), error: null })
     } catch (err) {
       if (controller.signal.aborted) return
-      onChange((previous) => ({
-        ...previous,
-        error: err instanceof Error ? err.message : '读取设备状态失败'
-      }))
+      const error = err instanceof Error ? err.message : '读取设备状态失败'
+      onChange((previous) => previous.error === error ? previous : { ...previous, error })
     }
     timer = globalThis.setTimeout(() => void poll(), interval)
   }

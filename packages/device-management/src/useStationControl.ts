@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { Services, StationControl, StationError } from '@unilab/services'
 
+import { keepIfEqual } from './stableState'
+
 /** 工站闸门轮询周期；暂停只在节点失败时出现，3 秒足够及时。 */
 export const STATION_CONTROL_POLL_MS = 3000
 
@@ -47,7 +49,7 @@ export function useStationControl(services: Services, active: boolean): StationC
     try {
       const next = await services.laboratory.getStationControl(signal)
       if (signal?.aborted) return
-      setControl(next)
+      setControl((current) => keepIfEqual(current, next))  // 工站状态没变就不重绘
       setReadError(null)
     } catch (error) {
       if (signal?.aborted) return
